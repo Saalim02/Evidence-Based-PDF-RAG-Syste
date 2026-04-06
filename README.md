@@ -368,17 +368,6 @@ Same answer style for all questions.
 
 ---
 
-## 📊 Project Highlights (For Interviews)
-
-* Built a **production-style RAG pipeline**
-* Implemented **hallucination control**
-* Designed **explainable AI system**
-* Added **multimodal evidence (text + image)**
-* Integrated **semantic search with FAISS**
-* Implemented **intent-aware answer generation**
-
----
-
 ## 📈 Future Improvements
 
 * Clickable suggested questions
@@ -388,13 +377,7 @@ Same answer style for all questions.
 
 ---
 
-## 👨‍💻 Author
-
-**Saalim**
-Aspiring Data Scientist / AI Engineer
-
----
-
 ## ⭐ If you like this project
 
-Give it a star on GitHub!
+❤️Give it a star⭐
+
