@@ -210,54 +210,6 @@ project root/
 
 ---
 
-## ⚙️ Setup Instructions
-
-### 1. Clone Repository
-
-```bash
-git clone <your-repo-link>
-cd project-root
-```
-
-### 2. Create Environment
-
-```bash
-conda create -n rag_env python=3.10
-conda activate rag_env
-```
-
-### 3. Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Add OpenAI API Key
-
-Create `.env` file:
-
-```
-OPENAI_API_KEY=your_api_key_here
-```
-
----
-
-### 5. Run Backend
-
-```bash
-uvicorn app.main:app --reload
-```
-
----
-
-### 6. Run Frontend
-
-```bash
-streamlit run streamlit_app.py
-```
-
----
-
 ## 🔥 Example Workflow
 
 1. Upload PDF
