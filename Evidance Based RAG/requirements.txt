@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+python-dotenv
+pydantic
+sentence-transformers
+faiss-cpu
+openai
+tqdm
+numpy
+python-multipart
+langchain
+langchain-community
+langchain-huggingface
+langchain-openai
+
+
