@@ -21,37 +21,37 @@ It focuses on:
 ## 🖼️ Project Demo / Screenshots
 
 ### 🔹 Main UI
-![Main UI](screenshots/ui.png)
+![Main UI](screenshots/UI.png)
 
 ### 🔹 PDF Upload
-![PDF Upload](screenshots/pdf_uploading.png)
+![PDF Upload](screenshots/uploading.png)
 
 ### 🔹 Upload Success
-![Upload Success](screenshots/uploaded_success.png)
+![Upload Success](screenshots/Uploaded.png)
 
 ### 🔹 Auto Summary
-![Auto Summary](screenshots/auto_summary.png)
+![Auto Summary](screenshots/summary.png)
 
 ### 🔹 Key Points Extracted
-![Key Points Extracted](screenshots/key_points_extracted.png)
+![Key Points Extracted](screenshots/keypoints.png)
 
 ### 🔹 Suggested Questions
-![Suggested Questions](screenshots/suggested_questions.png)
+![Suggested Questions](screenshots/suggesstedquestions.png)
 
 ### 🔹 Answer Generation
-![Manual Answer](screenshots/manual_answer.png)
+![Manual Answer](screenshots/manual.png)
 
 ### 🔹 Confidence Score
-![Confidence Score](screenshots/confidence_score.png)
+![Confidence Score](screenshots/confidencescore.png)
 
 ### 🔹 Evidence Collected from PDF
-![All Evidence](screenshots/all_evidence_collected_from_pdf.png)
+![All Evidence](screenshots/supportevidance.png)
 
 ### 🔹 Evidence Preview
-![Evidence Preview](screenshots/evidence_2.png)
+![Evidence Preview](screenshots/evidence.png)
 
 ### 🔹 Supporting Evidence
-![Supporting Evidence](screenshots/support_evidence.png)
+![Supporting Evidence](screenshots/evidance2.png)
 
 ---
 
