@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual Environments
+venv/
+.env/
+
+# Environment Variables
+.env
+
+# Runtime Storage
+storage/
+
+# Logs
+logs/
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# VS Code
+.vscode/
+
+# Pytest
+.pytest_cache/
+
+# Mypy
+.mypy_cache/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Docker
+*.log
