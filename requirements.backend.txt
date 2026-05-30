@@ -1,0 +1,23 @@
+fastapi
+uvicorn
+python-dotenv
+pydantic
+python-multipart
+
+openai
+
+langchain
+langchain-community
+langchain-openai
+langchain-huggingface
+
+sentence-transformers
+faiss-cpu
+
+numpy
+tqdm
+
+pymupdf
+
+torch --index-url 
+https://download.pytorch.org/whl/cpu
