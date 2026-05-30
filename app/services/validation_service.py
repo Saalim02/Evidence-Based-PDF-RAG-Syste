@@ -24,3 +24,4 @@ async def validate_pdf_file(file: UploadFile):
         )
 
     await file.seek(0)
+    
