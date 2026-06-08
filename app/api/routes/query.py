@@ -129,7 +129,7 @@ def ask_question(request: QueryRequest):
         seen_pages.add(page_number)
 
         image_path = (
-            f"http://127.0.0.1:8000/page_images/"
+            f"http://16.192.45.96:8000/page_images/"
             f"{active_doc_id}/page_{page_number}.png"
         )
 
