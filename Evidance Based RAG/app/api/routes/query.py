@@ -43,7 +43,7 @@ def ask_question(request: QueryRequest):
     evidence = []
     for chunk in retrieved_chunks:
         page_number = chunk["page_number"]
-        image_path = f"http://56.228.14.203:8000/page_images/{active_doc_id}/page_{page_number}.png"
+        image_path = f"http://16.192.45.96:8000/page_images/{active_doc_id}/page_{page_number}.png"
 
         evidence.append({
             "page_number": page_number,
