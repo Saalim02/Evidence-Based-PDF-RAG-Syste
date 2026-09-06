@@ -1,20 +1,32 @@
 import uuid
 from pathlib import Path
 
-from fastapi import UploadFile
+from fastapi import UploadFile, HTTPException
 
 from app.core.config import (
-    UPLOAD_DIR
+    MAX_FILE_SIZE_MB,
+    UPLOAD_DIR,
+)
+
+from app.services.user_storage_service import (
+    get_user_upload_dir,
 )
 
 
 async def save_uploaded_file(
-    file: UploadFile
+    file: UploadFile,
+    user_id: int | None = None,
 ) -> tuple[str, str, float]:
-
     """
-    Saves uploaded PDF into centralized
-    storage/uploads directory.
+    Streams the uploaded PDF to disk while enforcing
+    the configured maximum file size.
+
+    user_id provided:
+        Store the upload in the user's isolated directory.
+
+    user_id omitted:
+        Preserve the legacy UPLOAD_DIR behavior for
+        backwards compatibility and existing tests.
     """
 
     # -----------------------------------
@@ -34,32 +46,81 @@ async def save_uploaded_file(
         f"{extension}"
     )
 
+    # -----------------------------------
+    # SELECT STORAGE DIRECTORY
+    # -----------------------------------
+    if user_id is not None:
+        upload_dir = get_user_upload_dir(user_id)
+    else:
+        upload_dir = UPLOAD_DIR
+
+    upload_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
     file_path = (
-        UPLOAD_DIR /
+        upload_dir /
         unique_filename
     )
 
     # -----------------------------------
-    # READ FILE CONTENT
+    # STREAMING SIZE LIMIT
     # -----------------------------------
-    content = await file.read()
+    max_file_size_bytes = (
+        MAX_FILE_SIZE_MB * 1024 * 1024
+    )
+
+    total_bytes = 0
+    chunk_size = 1024 * 1024  # 1 MB
 
     # -----------------------------------
-    # SAVE FILE
+    # STREAM FILE TO DISK
     # -----------------------------------
-    with open(
-        file_path,
-        "wb"
-    ) as buffer:
+    try:
+        with open(
+            file_path,
+            "wb",
+        ) as buffer:
 
-        buffer.write(content)
+            while True:
+                chunk = await file.read(chunk_size)
+
+                if not chunk:
+                    break
+
+                total_bytes += len(chunk)
+
+                if total_bytes > max_file_size_bytes:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=(
+                            f"File exceeds "
+                            f"{MAX_FILE_SIZE_MB} MB limit."
+                        ),
+                    )
+
+                buffer.write(chunk)
+
+    # -----------------------------------
+    # CLEAN UP FAILED UPLOAD
+    # -----------------------------------
+    except HTTPException:
+        if file_path.exists():
+            file_path.unlink()
+        raise
+
+    except Exception:
+        if file_path.exists():
+            file_path.unlink()
+        raise
 
     # -----------------------------------
     # FILE SIZE
     # -----------------------------------
     file_size_mb = round(
-        len(content) / (1024 * 1024),
-        2
+        total_bytes / (1024 * 1024),
+        2,
     )
 
     # -----------------------------------
@@ -68,5 +129,5 @@ async def save_uploaded_file(
     return (
         original_filename,
         str(file_path),
-        file_size_mb
+        file_size_mb,
     )

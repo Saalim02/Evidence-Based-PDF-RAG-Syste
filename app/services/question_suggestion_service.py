@@ -40,7 +40,7 @@ def clean_json_response(raw_text: str):
     return raw_text
 
 
-def generate_suggested_questions(api_key: str):
+def generate_suggested_questions(api_key: str, user_id: int | None = None):
     """
     Generates useful suggested questions
     based on uploaded PDF content.
@@ -49,7 +49,7 @@ def generate_suggested_questions(api_key: str):
     # -----------------------------
     # ACTIVE DOCUMENT
     # -----------------------------
-    active_doc = get_active_document()
+    active_doc = get_active_document(user_id)
 
     if not active_doc:
 
@@ -67,7 +67,8 @@ def generate_suggested_questions(api_key: str):
     # LOAD DOCUMENT TEXT
     # -----------------------------
     document_text = load_summary_source(
-        active_doc_id
+        active_doc_id,
+        user_id,
     )
 
     if (

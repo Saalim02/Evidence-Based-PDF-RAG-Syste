@@ -1,9 +1,20 @@
 import fitz
 
+from app.core.config import MAX_PDF_PAGES
+
 
 def extract_text_from_pdf(pdf_path: str) -> dict:
     try:
         doc = fitz.open(pdf_path)
+
+        total_pages = len(doc)
+
+        if total_pages > MAX_PDF_PAGES:
+            doc.close()
+            raise ValueError(
+                f"PDF exceeds the maximum allowed page count "
+                f"of {MAX_PDF_PAGES} pages."
+            )
 
         pages_data = []
 
@@ -14,7 +25,6 @@ def extract_text_from_pdf(pdf_path: str) -> dict:
                 "text": page_text
             })
 
-        total_pages = len(doc)
         doc.close()
 
         return {
@@ -22,5 +32,10 @@ def extract_text_from_pdf(pdf_path: str) -> dict:
             "total_pages": total_pages
         }
 
+    except ValueError:
+        raise
+
     except Exception as e:
-        raise Exception(f"PDF read error: {str(e)}")
+        raise ValueError(
+            f"Invalid or unreadable PDF: {str(e)}"
+        )

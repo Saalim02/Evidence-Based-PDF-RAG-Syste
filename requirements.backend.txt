@@ -23,3 +23,11 @@ pymupdf
 --extra-index-url https://download.pytorch.org/whl/cpu
 
 torch
+email-validator
+SQLAlchemy
+PyJWT
+pwdlib[argon2]
+Authlib
+cryptography
+joserfc
+httpx

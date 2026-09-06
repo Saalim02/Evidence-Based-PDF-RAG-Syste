@@ -64,7 +64,7 @@ def clean_json_response(raw_text: str):
     return raw_text
 
 
-def generate_pdf_summary(api_key: str):
+def generate_pdf_summary(api_key: str, user_id: int | None = None):
 
     """
     Generates summary + key topics
@@ -74,7 +74,7 @@ def generate_pdf_summary(api_key: str):
     # -----------------------------------
     # ACTIVE DOCUMENT CHECK
     # -----------------------------------
-    active_doc = get_active_document()
+    active_doc = get_active_document(user_id)
 
     if not active_doc:
 
@@ -92,7 +92,7 @@ def generate_pdf_summary(api_key: str):
     # -----------------------------------
     # LOAD SUMMARY SOURCE
     # -----------------------------------
-    document_text = load_summary_source(active_doc_id)
+    document_text = load_summary_source(active_doc_id, user_id)
 
     if not document_text or len(document_text.strip()) < 100:
 

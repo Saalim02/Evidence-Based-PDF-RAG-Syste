@@ -1,85 +1,64 @@
-from pathlib import Path
-
-from app.core.config import (
-    SUMMARY_DIR
-)
+from app.core.config import SUMMARY_DIR
+from app.services.user_storage_service import get_user_summary_dir
 
 
-# -----------------------------------
-# SUMMARY SOURCE DIRECTORY
-# -----------------------------------
-SUMMARY_SOURCE_DIR = (
-    SUMMARY_DIR / "summary_source"
-)
+def _get_summary_source_dir(
+    user_id: int | None = None,
+):
+    if user_id is not None:
+        path = get_user_summary_dir(user_id) / "summary_source"
+    else:
+        path = SUMMARY_DIR / "summary_source"
 
-# -----------------------------------
-# CREATE DIRECTORY
-# -----------------------------------
-SUMMARY_SOURCE_DIR.mkdir(
-    parents=True,
-    exist_ok=True
-)
+    path.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    return path
 
 
 def save_summary_source(
     doc_id: str,
-    full_text: str
+    full_text: str,
+    user_id: int | None = None,
 ):
     """
-    Saves full extracted PDF text
-    for summary generation.
+    Saves extracted PDF text for summary generation.
     """
 
-    # -----------------------------------
-    # FILE PATH
-    # -----------------------------------
     file_path = (
-        SUMMARY_SOURCE_DIR /
-        f"{doc_id}.txt"
+        _get_summary_source_dir(user_id)
+        / f"{doc_id}.txt"
     )
 
-    # -----------------------------------
-    # SAVE TEXT
-    # -----------------------------------
     with open(
         file_path,
         "w",
-        encoding="utf-8"
+        encoding="utf-8",
     ) as f:
-
         f.write(full_text)
 
 
 def load_summary_source(
-    doc_id: str
+    doc_id: str,
+    user_id: int | None = None,
 ):
     """
-    Loads saved extracted PDF text
-    for summary generation.
+    Loads extracted PDF text for summary generation.
     """
 
-    # -----------------------------------
-    # FILE PATH
-    # -----------------------------------
     file_path = (
-        SUMMARY_SOURCE_DIR /
-        f"{doc_id}.txt"
+        _get_summary_source_dir(user_id)
+        / f"{doc_id}.txt"
     )
 
-    # -----------------------------------
-    # FILE NOT FOUND
-    # -----------------------------------
     if not file_path.exists():
-
         return None
 
-    # -----------------------------------
-    # READ FILE
-    # -----------------------------------
     with open(
         file_path,
         "r",
-        encoding="utf-8"
+        encoding="utf-8",
     ) as f:
-
         return f.read()

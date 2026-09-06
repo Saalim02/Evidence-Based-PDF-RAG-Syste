@@ -1,76 +1,83 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 import os
 
-from app.models.query_models import QueryRequest
+from app.models.evaluation_models import HumanReview
+from app.models.query_models import (
+    QueryRequest,
+    HumanReviewRequest,
+)
 from app.services.retrieval_service import retrieve_relevant_chunks
 from app.services.answer_service import generate_grounded_answer
 from app.services.document_registry_service import get_active_document
+from app.services.evaluation.evaluation_service import evaluate_rag_response
+from app.services.evaluation.evaluation_storage_service import (
+    save_evaluation,
+    load_evaluation,
+    save_human_review,
+    append_evaluation_dataset,
+)
+from app.services.security.guardrails import validate_question
+from app.services.security.audit_logger import log_security_event
+from app.models.auth_models import User
+from app.services.security.auth_dependencies import get_current_user
+from app.services.security.rag_authorization import (
+    resolve_authorized_api_key,
+)
 
 router = APIRouter()
 
 
-# -----------------------------------
-# API KEY RESOLUTION
-# -----------------------------------
-def resolve_api_key(
-    access_password: str,
-    user_openai_api_key: str
+
+@router.post("/ask")
+def ask_question(
+    request: QueryRequest,
+    current_user: User = Depends(get_current_user),
 ):
 
     # -----------------------------------
-    # BACKEND ACCESS MODE
+    # INPUT SECURITY GUARDRAIL
     # -----------------------------------
-    if access_password == "20022004":
+    security_result = validate_question(request.question)
 
-        backend_key = os.getenv("OPENAI_API_KEY")
-
-        if not backend_key:
-
-            raise HTTPException(
-                status_code=500,
-                detail="Backend OpenAI API key not configured."
-            )
-
-        return backend_key
-
-    # -----------------------------------
-    # USER API KEY MODE
-    # -----------------------------------
-    if not user_openai_api_key:
+    if not security_result.is_safe:
+        log_security_event(
+            "input_guardrail_blocked",
+            endpoint="/api/ask",
+            client_id=str(current_user.id),
+            decision=security_result.decision.value,
+            risk_score=security_result.risk_score,
+            reasons=security_result.reasons,
+        )
 
         raise HTTPException(
             status_code=400,
-            detail=(
-                "Provide valid access password "
-                "or your own OpenAI API key."
-            )
-        )
-
-    return user_openai_api_key
-
-
-@router.post("/ask")
-def ask_question(request: QueryRequest):
+            detail={
+                "message": "Request blocked by security guardrail.",
+                "security": security_result.model_dump(),
+            },
+         )
 
     # -----------------------------------
     # RESOLVE API KEY
     # -----------------------------------
-    api_key = resolve_api_key(
-        request.access_password,
-        request.user_openai_api_key
+    api_key = resolve_authorized_api_key(
+        user=current_user,
+        access_password=request.access_password,
+        user_openai_api_key=request.user_openai_api_key,
     )
 
     # -----------------------------------
     # RETRIEVE RELEVANT CHUNKS
     # -----------------------------------
     retrieval_output = retrieve_relevant_chunks(
-        request.question
+        request.question,
+        user_id=current_user.id,
     )
 
     if retrieval_output["status"] == "error":
         return retrieval_output
 
-    active_doc = get_active_document()
+    active_doc = get_active_document(current_user.id)
 
     active_doc_id = (
         active_doc["active_doc_id"]
@@ -128,8 +135,13 @@ def ask_question(request: QueryRequest):
 
         seen_pages.add(page_number)
 
+        backend_url = os.getenv(
+            "PUBLIC_BACKEND_URL",
+            "http://localhost:8000"
+        ).rstrip("/")
+        
         image_path = (
-            f"http://16.192.45.96:8000/page_images/"
+            f"{backend_url}/api/page-images/"
             f"{active_doc_id}/page_{page_number}.png"
         )
 
@@ -138,6 +150,28 @@ def ask_question(request: QueryRequest):
             "snippet": chunk["text"][:250],
             "image_path": image_path
         })
+
+    # -----------------------------------
+    # EVALUATE RAG RESPONSE
+    # -----------------------------------
+    evaluation = evaluate_rag_response(
+        question=request.question,
+        answer=final_answer,
+        retrieved_chunks=retrieved_chunks,
+        evidence=evidence,
+        api_key=api_key,
+        use_llm_judges=True,
+    )
+
+    # -----------------------------------
+    # SAVE EVALUATION
+    # -----------------------------------
+    evaluation.user_id = current_user.id
+
+    save_evaluation(
+        evaluation,
+        user_id=current_user.id,
+    )
 
     # -----------------------------------
     # FINAL RESPONSE
@@ -152,5 +186,107 @@ def ask_question(request: QueryRequest):
         "average_score": retrieval_output["average_score"],
         "evidence": evidence,
         "retrieved_chunks": retrieved_chunks,
+        "evaluation": evaluation.model_dump(),
         "message": "Answer generated successfully."
+    }
+# -----------------------------------
+# GET EVALUATION
+# -----------------------------------
+@router.get("/evaluation/{evaluation_id}")
+def get_evaluation(
+    evaluation_id: str,
+    current_user: User = Depends(get_current_user),
+):
+
+    evaluation = load_evaluation(
+        evaluation_id,
+        user_id=current_user.id,
+    )
+
+    if evaluation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Evaluation not found."
+        )
+
+    return evaluation.model_dump()
+
+
+# -----------------------------------
+# SUBMIT HUMAN REVIEW
+# -----------------------------------
+@router.post("/evaluation/{evaluation_id}/review")
+def submit_human_review(
+    evaluation_id: str,
+    request: HumanReviewRequest,
+    current_user: User = Depends(get_current_user),
+):
+
+    # -----------------------------------
+    # VERIFY EVALUATION EXISTS
+    # -----------------------------------
+    evaluation = load_evaluation(
+        evaluation_id,
+        user_id=current_user.id,
+    )
+
+    if evaluation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Evaluation not found.",
+        )
+
+    # -----------------------------------
+    # BUILD HUMAN REVIEW
+    # -----------------------------------
+    review = HumanReview(
+        evaluation_id=evaluation_id,
+        decision=request.decision,
+        feedback_category=request.feedback_category,
+        feedback_text=request.feedback_text,
+        corrected_answer=request.corrected_answer,
+    )
+
+    # -----------------------------------
+    # SAVE HUMAN REVIEW
+    # -----------------------------------
+    save_human_review(
+        review,
+        user_id=current_user.id,
+    )
+
+    # -----------------------------------
+    # APPEND TO EVALUATION DATASET
+    # -----------------------------------
+    append_evaluation_dataset(
+        evaluation=evaluation,
+        review=review,
+        user_id=current_user.id,
+    )
+    # -----------------------------------
+    # SECURITY AUDIT
+    # -----------------------------------
+    log_security_event(
+        "human_review_submitted",
+        endpoint="/api/evaluation/{evaluation_id}/review",
+        client_id=str(current_user.id),
+        decision=review.decision.value,
+        reasons=[
+            (
+                f"Human review submitted with category: "
+                f"{review.feedback_category.value}"
+                if review.feedback_category
+                else "Human review submitted without a feedback category."
+            )
+        ],
+    )
+
+    # -----------------------------------
+    # FINAL RESPONSE
+    # -----------------------------------
+    return {
+        "status": "success",
+        "evaluation_id": evaluation_id,
+        "review": review.model_dump(),
+        "message": "Human review saved successfully.",
     }

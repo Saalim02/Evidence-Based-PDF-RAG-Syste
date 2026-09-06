@@ -1,14 +1,20 @@
 import uuid
+from pathlib import Path
 
 from fastapi import (
     APIRouter,
     UploadFile,
     File,
     HTTPException,
-    Form
+    Form,
+    Depends,
 )
 
 from app.services.validation_service import validate_pdf_file
+
+from app.models.auth_models import User
+from app.services.security.auth_dependencies import get_current_user
+from app.services.security.rag_authorization import resolve_authorized_api_key
 
 from app.utils.file_handler import save_uploaded_file
 
@@ -50,10 +56,21 @@ async def upload_pdf(
 
     access_password: str = Form(""),
 
-    user_openai_api_key: str = Form("")
-):
+    user_openai_api_key: str = Form(""),
 
+    current_user: User = Depends(get_current_user),
+):
+    saved_path = None
     try:
+
+        # -----------------------------------
+        # AUTHORIZATION
+        # -----------------------------------
+        api_key = resolve_authorized_api_key(
+            user=current_user,
+            access_password=access_password,
+            user_openai_api_key=user_openai_api_key,
+        )
 
         # -----------------------------------
         # VALIDATE PDF
@@ -67,12 +84,21 @@ async def upload_pdf(
             original_filename,
             saved_path,
             file_size_mb
-        ) = await save_uploaded_file(file)
+        ) = await save_uploaded_file(
+            file,
+            user_id=current_user.id,
+        )
 
         # -----------------------------------
         # EXTRACT PDF TEXT
         # -----------------------------------
-        pdf_data = extract_text_from_pdf(saved_path)
+        try:
+            pdf_data = extract_text_from_pdf(saved_path)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400,
+                detail=str(e),
+            )
 
         pages_data = pdf_data["pages"]
 
@@ -133,7 +159,8 @@ async def upload_pdf(
         # -----------------------------------
         generate_page_images(
             saved_path,
-            doc_id
+            doc_id,
+            user_id=current_user.id,
         )
 
         # -----------------------------------
@@ -141,7 +168,8 @@ async def upload_pdf(
         # -----------------------------------
         save_summary_source(
             doc_id,
-            extracted_text
+            extracted_text,
+            user_id=current_user.id,
         )
 
         # -----------------------------------
@@ -167,7 +195,8 @@ async def upload_pdf(
         # CREATE VECTORSTORE
         # -----------------------------------
         create_and_save_vectorstore(
-            documents
+            documents,
+            user_id=current_user.id,
         )
 
         # -----------------------------------
@@ -176,7 +205,8 @@ async def upload_pdf(
         export_debug_files(
             original_filename,
             pages_data,
-            metadata
+            metadata,
+            user_id=current_user.id,
         )
 
         # -----------------------------------
@@ -184,7 +214,8 @@ async def upload_pdf(
         # -----------------------------------
         save_active_document(
             doc_id,
-            original_filename
+            original_filename,
+            user_id=current_user.id,
         )
 
         # -----------------------------------
@@ -246,11 +277,23 @@ async def upload_pdf(
                 "generated successfully."
             )
         )
-
     except HTTPException as e:
+
+        if saved_path:
+            saved_file = Path(saved_path)
+
+            if saved_file.exists():
+                saved_file.unlink()
+
         raise e
 
     except Exception as e:
+
+        if saved_path:
+            saved_file = Path(saved_path)
+
+            if saved_file.exists():
+                saved_file.unlink()
 
         raise HTTPException(
             status_code=500,

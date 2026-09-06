@@ -31,13 +31,16 @@ def get_confidence_label(best_score: float) -> str:
         return "low"
 
 
-def retrieve_relevant_chunks(query: str):
+def retrieve_relevant_chunks(
+    query: str,
+    user_id: int | None = None,
+):
     """
     Retrieves top relevant chunks only from the active uploaded document.
     Also returns confidence info for hallucination control.
     """
 
-    active_doc = get_active_document()
+    active_doc = get_active_document(user_id)
 
     if not active_doc:
         return {
@@ -52,7 +55,7 @@ def retrieve_relevant_chunks(query: str):
 
     active_filename = active_doc["active_filename"]
 
-    vectorstore = load_vectorstore()
+    vectorstore = load_vectorstore(user_id)
 
     if vectorstore is None:
         return {

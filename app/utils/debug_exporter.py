@@ -1,11 +1,16 @@
 import json
 from pathlib import Path
 from app.core.config import DEBUG_OUTPUT_DIR
+from app.services.user_storage_service import get_user_debug_dir
 
 
-def export_debug_files(source_filename, pages_data, metadata):
+def export_debug_files(source_filename, pages_data, metadata, user_id: int | None = None):
     safe_name = Path(source_filename).stem
-    base_dir = DEBUG_OUTPUT_DIR / safe_name
+
+    if user_id is not None:
+        base_dir = get_user_debug_dir(user_id) / safe_name
+    else:
+        base_dir = DEBUG_OUTPUT_DIR / safe_name
 
     clean_pages_dir = base_dir / "clean_pages"
     chunks_dir = base_dir / "chunks"

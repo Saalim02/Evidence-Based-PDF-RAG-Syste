@@ -1,57 +1,14 @@
-from fastapi import APIRouter, HTTPException
-import os
+from fastapi import APIRouter, Depends
 
+from app.models.auth_models import User
 from app.models.query_models import QueryRequest
+from app.models.question_suggestion_models import SuggestedQuestionsResponse
 
-from app.models.question_suggestion_models import (
-    SuggestedQuestionsResponse
-)
-
-from app.services.question_suggestion_service import (
-    generate_suggested_questions
-)
+from app.services.security.auth_dependencies import get_current_user
+from app.services.security.rag_authorization import resolve_authorized_api_key
+from app.services.question_suggestion_service import generate_suggested_questions
 
 router = APIRouter()
-
-
-# -----------------------------------
-# API KEY RESOLUTION
-# -----------------------------------
-def resolve_api_key(
-    access_password: str,
-    user_openai_api_key: str
-):
-
-    # -----------------------------------
-    # BACKEND ACCESS MODE
-    # -----------------------------------
-    if access_password == "20022004":
-
-        backend_key = os.getenv("OPENAI_API_KEY")
-
-        if not backend_key:
-
-            raise HTTPException(
-                status_code=500,
-                detail="Backend OpenAI API key not configured."
-            )
-
-        return backend_key
-
-    # -----------------------------------
-    # USER API KEY MODE
-    # -----------------------------------
-    if not user_openai_api_key:
-
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                "Provide valid access password "
-                "or your own OpenAI API key."
-            )
-        )
-
-    return user_openai_api_key
 
 
 @router.post(
@@ -59,20 +16,16 @@ def resolve_api_key(
     response_model=SuggestedQuestionsResponse
 )
 def get_suggested_questions(
-    request: QueryRequest
+    request: QueryRequest,
+    current_user: User = Depends(get_current_user),
 ):
-
-    # -----------------------------------
-    # RESOLVE API KEY
-    # -----------------------------------
-    api_key = resolve_api_key(
-        request.access_password,
-        request.user_openai_api_key
+    api_key = resolve_authorized_api_key(
+        user=current_user,
+        access_password=request.access_password,
+        user_openai_api_key=request.user_openai_api_key,
     )
 
-    # -----------------------------------
-    # GENERATE QUESTIONS
-    # -----------------------------------
     return generate_suggested_questions(
-        api_key
+        api_key,
+        user_id=current_user.id,
     )
