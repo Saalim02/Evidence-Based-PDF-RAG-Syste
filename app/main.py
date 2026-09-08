@@ -41,6 +41,7 @@ from app.api.routes.page_images import (
 )
 
 from app.core.config import (
+    FRONTEND_URL,
     validate_required_environment,
 )
 
@@ -124,12 +125,7 @@ async def rate_limit_middleware(request: Request, call_next):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:8501",
-        "http://127.0.0.1:8501",
-        "http://localhost:8502",
-        "http://127.0.0.1:8502",
+        FRONTEND_URL,
     ],
     allow_credentials=True,
     allow_methods=["*"],

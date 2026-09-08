@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
@@ -525,3 +526,73 @@ def test_google_login_uses_google_rate_limiter(monkeypatch):
     assert response.status_code == 307
     assert calls
     assert calls[0] is GOOGLE_LOGIN_RATE_LIMITER
+
+
+def test_google_callback_redirects_to_configured_frontend(monkeypatch):
+    from app.api.routes import auth as auth_routes
+    from app.core.config import FRONTEND_URL
+
+    test_user = User(
+        id=999999,
+        email="oauth_redirect_test@example.com",
+        auth_provider="google",
+        google_sub="oauth-redirect-test-sub",
+        is_active=True,
+        token_version=0,
+    )
+
+    monkeypatch.setattr(
+        auth_routes,
+        "get_google_config",
+        lambda: {
+            "client_id": "test-client-id",
+            "client_secret": "test-client-secret",
+            "redirect_uri": (
+                "http://localhost:8000/api/auth/google/callback"
+            ),
+        },
+    )
+
+    async def fake_exchange_code_for_tokens(code):
+        return {"id_token": "test-id-token"}
+
+    async def fake_verify_google_id_token(
+        id_token,
+        client_id,
+    ):
+        return {
+            "email": test_user.email,
+            "sub": test_user.google_sub,
+            "email_verified": True,
+        }
+
+    monkeypatch.setattr(
+        auth_routes,
+        "exchange_code_for_tokens",
+        fake_exchange_code_for_tokens,
+    )
+    monkeypatch.setattr(
+        auth_routes,
+        "verify_google_id_token",
+        fake_verify_google_id_token,
+    )
+    monkeypatch.setattr(
+        auth_routes,
+        "get_or_create_google_user",
+        lambda db, email, google_sub: test_user,
+    )
+
+    monkeypatch.setattr(
+        auth_routes,
+        "verify_oauth_state",
+        lambda received_state, stored_state: True,
+    )
+
+    response = client.get(
+        "/api/auth/google/callback"
+        "?state=test-state&code=test-code",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 303
+    assert response.headers["location"] == FRONTEND_URL

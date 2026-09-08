@@ -43,7 +43,14 @@ EVALUATION_MODEL = os.getenv(
     "EVALUATION_MODEL",
     "gpt-4o-mini",
 )
+# -----------------------------------
+# APPLICATION URL CONFIGURATION
+# -----------------------------------
 
+FRONTEND_URL = os.getenv(
+    "FRONTEND_URL",
+    "http://localhost:5173",
+).strip()
 
 # -----------------------------------
 # REQUIRED ENVIRONMENT VALIDATION

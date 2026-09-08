@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 from fastapi.responses import RedirectResponse
+from app.core.config import FRONTEND_URL
 
 from app.core.database import get_db
 from app.models.auth_models import User
@@ -481,7 +482,7 @@ async def google_callback(
         ) from exc
 
     response = RedirectResponse(
-        url="http://localhost:5173/",
+        url=FRONTEND_URL,
         status_code=status.HTTP_303_SEE_OTHER,
     )
 
