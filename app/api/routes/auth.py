@@ -69,7 +69,7 @@ def register(
     )
 
     check_auth_rate_limit(
-        GOOGLE_LOGIN_RATE_LIMITER,
+        REGISTER_RATE_LIMITER,
         client_host,
     )
 
@@ -330,7 +330,7 @@ def google_login(
     )
 
     check_auth_rate_limit(
-    
+        GOOGLE_LOGIN_RATE_LIMITER,    
         client_host,
     )
 
@@ -384,10 +384,6 @@ async def google_callback(
         request.client.host
         if request.client
         else "unknown"
-    )
-    access_token = create_access_token(
-        user.id,
-        token_version=user.token_version,
     )
 
     state_cookie = request.cookies.get(

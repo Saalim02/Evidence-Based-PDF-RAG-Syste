@@ -6,7 +6,9 @@ from app.main import app
 from app.core.database import SessionLocal
 from app.models.auth_models import PasswordResetToken, User
 from app.services.security.auth_rate_limit import (
+    GOOGLE_LOGIN_RATE_LIMITER,
     PASSWORD_RESET_CONFIRM_RATE_LIMITER,
+    REGISTER_RATE_LIMITER,
 )
 from app.services.security.auth_service import (
     create_access_token,
@@ -465,3 +467,61 @@ def test_weak_password_does_not_consume_reset_token():
     assert valid_response.json()["message"] == (
         "Password has been reset successfully."
     )
+
+
+
+
+def test_register_uses_register_rate_limiter(monkeypatch):
+    calls = []
+
+    def fake_check(limiter, client_id):
+        calls.append(limiter)
+
+    monkeypatch.setattr(
+        "app.api.routes.auth.check_auth_rate_limit",
+        fake_check,
+    )
+    import uuid
+    from datetime import datetime, timedelta, timezone  
+    email = (
+        f"register_rate_test_{uuid.uuid4().hex}"
+        "@example.com"
+    )
+
+    response = client.post(
+        "/api/auth/register",
+        json={
+            "email": email,
+            "password": "RegisterPassword123!",
+        },
+    )
+
+    assert response.status_code == 201
+    assert calls
+    assert calls[0] is REGISTER_RATE_LIMITER
+
+
+def test_google_login_uses_google_rate_limiter(monkeypatch):
+    calls = []
+
+    def fake_check(limiter, client_id):
+        calls.append(limiter)
+
+    monkeypatch.setattr(
+        "app.api.routes.auth.check_auth_rate_limit",
+        fake_check,
+    )
+
+    monkeypatch.setattr(
+        "app.api.routes.auth.build_google_authorization_url",
+        lambda state: "https://accounts.google.com/test",
+    )
+
+    response = client.get(
+        "/api/auth/google/login",
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 307
+    assert calls
+    assert calls[0] is GOOGLE_LOGIN_RATE_LIMITER
