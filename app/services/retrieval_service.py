@@ -19,13 +19,19 @@ def get_dynamic_top_k(total_chunks: int) -> int:
 
 def get_confidence_label(best_score: float) -> str:
     """
-    Converts best retrieval score into confidence label.
-    Lower FAISS distance = better match.
+    Converts FAISS distance into a retrieval confidence label.
+
+    FAISS returns L2 distance here:
+        lower distance = stronger semantic match
+        higher distance = weaker semantic match
+
+    Thresholds are intentionally conservative so that
+    weak/out-of-document queries do not reach generation.
     """
 
-    if best_score < 1.6:
+    if best_score < 1.30:
         return "high"
-    elif best_score < 2.2:
+    elif best_score < 1.60:
         return "medium"
     else:
         return "low"

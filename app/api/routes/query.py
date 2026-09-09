@@ -5,6 +5,7 @@ from app.models.evaluation_models import HumanReview
 from app.models.query_models import (
     QueryRequest,
     HumanReviewRequest,
+    QueryResponse,
 )
 from app.services.retrieval_service import retrieve_relevant_chunks
 from app.services.answer_service import generate_grounded_answer
@@ -17,6 +18,9 @@ from app.services.evaluation.evaluation_storage_service import (
     append_evaluation_dataset,
 )
 from app.services.security.guardrails import validate_question
+from app.services.security.semantic_guardrail import (
+    classify_question_semantically,
+)
 from app.services.security.audit_logger import log_security_event
 from app.models.auth_models import User
 from app.services.security.auth_dependencies import get_current_user
@@ -26,9 +30,19 @@ from app.services.security.rag_authorization import (
 
 router = APIRouter()
 
+def classify_question(confidence: str) -> str:
+    """
+    Classifies the query based on the RAG pipeline outcome.
+    """
+    if confidence == "low":
+        return "UNANSWERABLE"
 
+    return "DOCUMENT"
 
-@router.post("/ask")
+@router.post(
+    "/ask",
+    response_model=QueryResponse,
+)
 def ask_question(
     request: QueryRequest,
     current_user: User = Depends(get_current_user),
@@ -53,6 +67,7 @@ def ask_question(
             status_code=400,
             detail={
                 "message": "Request blocked by security guardrail.",
+                "question_type": "SECURITY_BLOCKED",
                 "security": security_result.model_dump(),
             },
          )
@@ -65,6 +80,32 @@ def ask_question(
         access_password=request.access_password,
         user_openai_api_key=request.user_openai_api_key,
     )
+    # -----------------------------------
+    # SEMANTIC INPUT SECURITY GUARDRAIL
+    # -----------------------------------
+    semantic_security_result = classify_question_semantically(
+        question=request.question,
+        api_key=api_key,
+    )
+
+    if not semantic_security_result.is_safe:
+        log_security_event(
+            "semantic_input_guardrail_blocked",
+            endpoint="/api/ask",
+            client_id=str(current_user.id),
+            decision=semantic_security_result.decision.value,
+            risk_score=semantic_security_result.risk_score,
+            reasons=semantic_security_result.reasons,
+        )
+
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "Request blocked by semantic security guardrail.",
+                "question_type": "SECURITY_BLOCKED",
+                "security": semantic_security_result.model_dump(),
+            },
+        )
 
     # -----------------------------------
     # RETRIEVE RELEVANT CHUNKS
@@ -93,20 +134,20 @@ def ask_question(
             "status": "error",
             "active_document": retrieval_output["active_document"],
             "question": request.question,
+            "question_type": "UNANSWERABLE",
             "answer": None,
             "confidence": retrieval_output["confidence"],
             "best_score": retrieval_output["best_score"],
             "average_score": retrieval_output["average_score"],
             "evidence": [],
-            "retrieved_chunks": retrieval_output["retrieved_chunks"],
+            "retrieved_chunks": [],
             "message": "Answer not found in uploaded PDF."
         }
 
     # -----------------------------------
-    # RETRIEVED CHUNKS
+    # RETRIEVED CHUNS
     # -----------------------------------
     retrieved_chunks = retrieval_output["retrieved_chunks"]
-
     # -----------------------------------
     # GENERATE FINAL ANSWER
     # -----------------------------------
@@ -115,6 +156,28 @@ def ask_question(
         retrieved_chunks=retrieved_chunks,
         api_key=api_key
     )
+
+    # -----------------------------------
+    # ANSWER SERVICE FALLBACK
+    # -----------------------------------
+    if (
+        not final_answer
+        or final_answer.strip()
+        == "Answer not found in uploaded PDF."
+    ):
+        return {
+            "status": "error",
+            "active_document": retrieval_output["active_document"],
+            "question": request.question,
+            "question_type": "UNANSWERABLE",
+            "answer": None,
+            "confidence": "low",
+            "best_score": retrieval_output["best_score"],
+            "average_score": retrieval_output["average_score"],
+            "evidence": [],
+            "retrieved_chunks": [],
+            "message": "Answer not found in uploaded PDF.",
+        }
 
     # -----------------------------------
     # BUILD EVIDENCE
@@ -180,6 +243,9 @@ def ask_question(
         "status": "success",
         "active_document": retrieval_output["active_document"],
         "question": request.question,
+        "question_type": classify_question(
+            retrieval_output["confidence"]
+        ),
         "answer": final_answer,
         "confidence": retrieval_output["confidence"],
         "best_score": retrieval_output["best_score"],

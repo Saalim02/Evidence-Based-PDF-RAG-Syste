@@ -125,3 +125,60 @@ def test_upload_malformed_pdf_is_rejected_and_cleaned_up(
     assert response.status_code == 400
     assert "Invalid or unreadable PDF" in response.json()["detail"]
     assert not saved_path.exists()
+def test_scanned_pdf_is_returned_as_error_and_cleaned_up(
+    tmp_path,
+    monkeypatch,
+):
+    async def fake_save_uploaded_file(
+        file,
+        user_id=None,
+    ):
+        saved_path = tmp_path / "scanned.pdf"
+        saved_path.write_bytes(b"fake scanned pdf")
+
+        return (
+            "scanned.pdf",
+            str(saved_path),
+            0.01,
+        )
+
+    monkeypatch.setattr(
+        "app.api.routes.upload.save_uploaded_file",
+        fake_save_uploaded_file,
+    )
+
+    monkeypatch.setattr(
+        "app.api.routes.upload.extract_text_from_pdf",
+        lambda _: {
+            "pages": [
+                {
+                    "page_number": 1,
+                    "text": "tiny",
+                }
+            ],
+            "total_pages": 1,
+        },
+    )
+
+    response = client.post(
+        "/api/upload-pdf",
+        headers=auth_headers(),
+        data=auth_form_data(),
+        files={
+            "file": (
+                "scanned.pdf",
+                b"fake-pdf-content",
+                "application/pdf",
+            )
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["status"] == "error"
+    assert data["filename"] == "scanned.pdf"
+    assert "scanned" in data["message"].lower()
+
+    assert not (tmp_path / "scanned.pdf").exists()

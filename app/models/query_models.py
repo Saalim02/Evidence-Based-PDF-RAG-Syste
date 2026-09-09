@@ -33,6 +33,7 @@ class QueryResponse(BaseModel):
     status: str
     active_document: Optional[str]
     question: str
+    question_type: str
     answer: Optional[str]
     confidence: Optional[str]
     best_score: Optional[float]

@@ -1,3 +1,4 @@
+import logging
 import uuid
 from pathlib import Path
 
@@ -15,7 +16,9 @@ from app.services.validation_service import validate_pdf_file
 from app.models.auth_models import User
 from app.services.security.auth_dependencies import get_current_user
 from app.services.security.rag_authorization import resolve_authorized_api_key
-
+from app.services.document_cleanup_service import (
+    cleanup_failed_upload,
+)
 from app.utils.file_handler import save_uploaded_file
 
 from app.services.pdf_service import extract_text_from_pdf
@@ -42,6 +45,8 @@ from app.services.vector_store_service import (
     convert_chunks_to_documents,
     create_and_save_vectorstore
 )
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -115,11 +120,17 @@ async def upload_pdf(
         # LOW TEXT / SCANNED CHECK
         # -----------------------------------
         if (
-            not extracted_text.strip()
-            or len(extracted_text.strip()) < 50
+           not extracted_text.strip()
+           or len(extracted_text.strip()) < 50
         ):
 
-            return UploadPDFResponse(
+           cleanup_failed_upload(
+               user_id=current_user.id,
+               saved_path=saved_path,
+               filename=original_filename,
+           )
+
+           return UploadPDFResponse(
 
                 status="error",
 
@@ -279,23 +290,28 @@ async def upload_pdf(
         )
     except HTTPException as e:
 
-        if saved_path:
-            saved_file = Path(saved_path)
-
-            if saved_file.exists():
-                saved_file.unlink()
+        cleanup_failed_upload(
+            user_id=current_user.id,
+            doc_id=locals().get("doc_id"),
+            saved_path=saved_path,
+            filename=locals().get("original_filename"),
+        )
 
         raise e
 
-    except Exception as e:
+    except Exception:
+        logger.exception(
+            "Unexpected error while processing PDF upload."
+        )
 
-        if saved_path:
-            saved_file = Path(saved_path)
-
-            if saved_file.exists():
-                saved_file.unlink()
+        cleanup_failed_upload(
+            user_id=current_user.id,
+            doc_id=locals().get("doc_id"),
+            saved_path=saved_path,
+            filename=locals().get("original_filename"),
+       )
 
         raise HTTPException(
             status_code=500,
-            detail=str(e)
+            detail="Failed to process the uploaded PDF."
         )

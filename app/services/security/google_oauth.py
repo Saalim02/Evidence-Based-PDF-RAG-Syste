@@ -4,6 +4,7 @@ from urllib.parse import urlencode
 import httpx
 from joserfc import jwt
 from joserfc.errors import JoseError
+from joserfc.jwk import KeySet
 from joserfc.jwt import JWTClaimsRegistry
 
 
@@ -113,9 +114,11 @@ async def verify_google_id_token(
     jwks = await fetch_google_jwks()
 
     try:
+        key_set = KeySet.import_key_set(jwks)
+
         token = jwt.decode(
             id_token,
-            jwks,
+            key_set,
             algorithms=["RS256"],
         )
 

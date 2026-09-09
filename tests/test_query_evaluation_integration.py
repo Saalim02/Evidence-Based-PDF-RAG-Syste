@@ -74,6 +74,23 @@ def auth_headers_for(email: str):
         "Authorization": f"Bearer {get_test_user_token(email)}",
     }
 
+def allow_semantic_security(monkeypatch):
+    from app.models.security_models import (
+        SecurityCheckResult,
+        SecurityDecision,
+    )
+
+    monkeypatch.setattr(
+        query_route,
+        "classify_question_semantically",
+        lambda question, api_key: SecurityCheckResult(
+            decision=SecurityDecision.ALLOW,
+            is_safe=True,
+            risk_score=0.0,
+            reasons=["Test request explicitly allowed."],
+        ),
+    )
+
 
 def get_test_user_id(email: str):
     """Return the database ID for a dedicated test user."""
@@ -140,6 +157,7 @@ def build_mock_evaluation():
 
 
 def test_ask_route_integrates_evaluation(monkeypatch):
+    allow_semantic_security(monkeypatch)
     monkeypatch.setattr(
         query_route,
         "resolve_authorized_api_key",
@@ -231,6 +249,8 @@ def test_ask_route_integrates_evaluation(monkeypatch):
 def test_ask_route_does_not_call_evaluation_when_retrieval_is_low(
     monkeypatch,
 ):
+    allow_semantic_security(monkeypatch)
+
     monkeypatch.setattr(
         query_route,
         "resolve_authorized_api_key",
@@ -281,7 +301,7 @@ def test_ask_route_does_not_call_evaluation_when_retrieval_is_low(
 
     assert data["status"] == "error"
     assert data["answer"] is None
-    assert data["evaluation"] if "evaluation" in data else True
+    assert data["evaluation"] is None
     assert evaluation_called is False
 
 

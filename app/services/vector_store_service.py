@@ -1,3 +1,5 @@
+import shutil
+import tempfile
 from pathlib import Path
 
 from langchain_core.documents import Document
@@ -58,10 +60,14 @@ def create_and_save_vectorstore(
     user_id: int | None = None,
 ):
     """
-    Creates and saves a FAISS vectorstore.
+    Creates and saves a FAISS vectorstore safely.
 
-    When user_id is provided, the vectorstore is isolated
-    under that user's storage directory.
+    The new vectorstore is first written to a temporary directory.
+    Only after the temporary save succeeds is it moved into the
+    user's vectorstore directory.
+
+    This prevents a failed FAISS save from partially overwriting
+    an existing working vectorstore.
     """
 
     embeddings = get_embedding_model()
@@ -73,16 +79,44 @@ def create_and_save_vectorstore(
 
     vectorstore_dir = _get_vectorstore_dir(user_id)
 
-    vectorstore_dir.mkdir(
+    vectorstore_dir.parent.mkdir(
         parents=True,
         exist_ok=True,
     )
 
-    vectorstore.save_local(
-        str(vectorstore_dir)
+    temp_dir = Path(
+        tempfile.mkdtemp(
+            prefix=".vectorstore_tmp_",
+            dir=str(vectorstore_dir.parent),
+        )
     )
 
-    return vectorstore
+    try:
+        # -----------------------------------
+        # SAVE NEW VECTORSTORE TO TEMP DIR
+        # -----------------------------------
+        vectorstore.save_local(
+            str(temp_dir)
+        )
+
+        # -----------------------------------
+        # REPLACE EXISTING VECTORSTORE
+        # -----------------------------------
+        if vectorstore_dir.exists():
+            shutil.rmtree(vectorstore_dir)
+
+        temp_dir.rename(vectorstore_dir)
+
+        return vectorstore
+
+    except Exception:
+        # -----------------------------------
+        # CLEAN UP FAILED TEMP SAVE
+        # -----------------------------------
+        if temp_dir.exists():
+            shutil.rmtree(temp_dir)
+
+        raise
 
 
 def load_vectorstore(
